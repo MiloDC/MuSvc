@@ -26,18 +26,22 @@ module internal Client =
 
     let private sendRequest (actor: MailboxProcessor<ActorMsg>) client (request: string) =
         match request with
-        | r when r.Equals (Command.ClientCount, StringComparison.OrdinalIgnoreCase) -> ClientCount client
-        | r when r.Equals (Command.Quit, StringComparison.OrdinalIgnoreCase) -> RemoveClient client
+        | r when r.Equals (Command.ClientCount, StringComparison.OrdinalIgnoreCase) ->
+            ClientCount client
+        | r when r.Equals (Command.Quit, StringComparison.OrdinalIgnoreCase) ->
+            RemoveClient client
         | r -> ProcessInput (client, r)
         |> actor.Post
 
-    let rec clientLoopAsync (actor: MailboxProcessor<ActorMsg>) sb client =
+    let rec clientLoopAsync (actor: MailboxProcessor<ActorMsg>) sb cl =
         async {
             try
-                match! client.tcp.GetStream().AsyncRead (client.buffer, 0, client.buffer.Length) with
+                match! cl.tcp.GetStream().AsyncRead (cl.buffer, 0, cl.buffer.Length) with
                 | byteCount when byteCount > 0 ->
-                    Text.Encoding.UTF8.GetString (client.buffer, 0, byteCount) |> Printf.bprintf sb "%s"
-                    let m = Regex.Match (string sb, sprintf "^.*%s" (Regex.Escape Terminator))
+                    Text.Encoding.UTF8.GetString (cl.buffer, 0, byteCount)
+                    |> Printf.bprintf sb "%s"
+
+                    let m = Regex.Match (string sb, $"^.*{Regex.Escape Terminator}")
                     let quit =
                         m.Success
                         && (
@@ -45,15 +49,15 @@ module internal Client =
 
                             m.Value.Split ([| Terminator |], StringSplitOptions.RemoveEmptyEntries)
                             |> Array.exists (fun t ->
-                                sendRequest actor client t
-                                t.Equals (Command.Quit, StringComparison.OrdinalIgnoreCase) ) )
+                                sendRequest actor cl t
+                                t.Equals (Command.Quit, StringComparison.OrdinalIgnoreCase)))
 
-                    if not quit then return! clientLoopAsync actor sb client
+                    if not quit then return! clientLoopAsync actor sb cl
                 | _ ->
-                    if isConnected client then
-                        return! clientLoopAsync actor sb client
+                    if isConnected cl then
+                        return! clientLoopAsync actor sb cl
                     else
-                        sendRequest actor client "/q"
+                        sendRequest actor cl Command.Quit
             with
                 _ -> ()
         }

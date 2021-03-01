@@ -30,7 +30,7 @@ type Actor internal (port, fn) =
 module Actor =
     let private sendResultAsync client result =
         async {
-            let text = match result with Output o -> o | Error e -> sprintf "? %s" e
+            let text = match result with Output o -> o | Error e -> $"? {e}"
             let bytes = sprintf "%s%s" text Terminator |> Text.Encoding.UTF8.GetBytes
             try
                 do! client.tcp.GetStream().AsyncWrite (bytes, 0, bytes.Length)
@@ -73,10 +73,12 @@ module Actor =
                 do!
                     async {
                         do!
-                            sprintf "%sConnected to actor @ %s:%d%s"
-                                Terminator actor.IpAddress actor.Port Terminator
+                            $"{Terminator}Connected to actor @ \
+                                {actor.IpAddress}:{actor.Port}{Terminator}"
                             |> Output |> sendResultAsync client
-                        do! Client.clientLoopAsync actor.Mailbox (System.Text.StringBuilder ()) client
+                        do!
+                            client
+                            |> Client.clientLoopAsync actor.Mailbox (System.Text.StringBuilder ())
                     }
                     |> Async.StartChild |> Async.Ignore
 
@@ -101,16 +103,17 @@ module Actor =
                         | :? SocketException -> ()
 
                         actor.Listener.Server.Close ()
-                        lock actor.Clients (fun () -> actor.Clients |> Seq.iter (fun c -> c.tcp.Close ()))
+                        lock actor.Clients (fun () ->
+                            actor.Clients |> Seq.iter (fun c -> c.tcp.Close ()))
                 )
                 |> Async.TryCancelled
-            , actor.CancelSrc.Token
-        )
+            , actor.CancelSrc.Token)
         |> ignore
 
-        printfn "Actor started at %s:%d" actor.IpAddress actor.Port
+        printfn $"Actor started at {actor.IpAddress}:{actor.Port}"
         actor
 
     let shutdown (actor: Actor) =
         actor.CancelSrc.Cancel ()
-        printfn "Actor at %s:%d shut down." actor.IpAddress actor.Port
+        printfn ""
+        printfn $"Actor at {actor.IpAddress}:{actor.Port} shut down."
