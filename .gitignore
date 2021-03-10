@@ -17,6 +17,7 @@
 [Oo]bj/
 [Dd]ebug*/
 [Rr]elease*/
+*.dtbcache*
 *.obj
 *.user
 *.aps
@@ -44,7 +45,6 @@
 *.tss
 ipch/
 Ankh.NoLoad
-*.dtbcache
 
 #NuGet
 # Ignore NuGet Packages
