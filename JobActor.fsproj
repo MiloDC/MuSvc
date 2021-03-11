@@ -1,7 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+<!--
+    <TargetFramework>net5.0</TargetFramework>
+-->
+    <TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+<!--
+    <DependentAssembly>
+      <AssemblyIdentity name="System.Runtime" publicKeyToken="b03f5f7f11d50a3a" culture="neutral" />
+      <BindingRedirect oldVersion="4.0.0.0" newVersion="5.0.0.0" />
+    </DependentAssembly>
+-->
   </PropertyGroup>
 
   <ItemGroup>

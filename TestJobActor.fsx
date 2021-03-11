@@ -1,5 +1,5 @@
 ﻿// -------- BEGIN Send to F# Interactive first --------
-#r @"..\_External\DotNET\netstandard2.0\netstandard.dll"
+//#r @"bin\Debug\net5.0\JobActor.dll"
 #r @"bin\Debug\netstandard2.0\JobActor.dll"
 
 open miloonline.net.JobActor
