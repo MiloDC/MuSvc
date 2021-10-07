@@ -1,7 +1,7 @@
 ﻿[<AutoOpen>]
-module miloonline.net.JobActor.Global
+module net.miloonline.MuSvc.Global
 
-let [<Literal>] Terminator = "\r\n"
+let [<Literal>] MsgTerminator = "\r\n"
 
 [<RequireQualifiedAccess>]
 module Command =

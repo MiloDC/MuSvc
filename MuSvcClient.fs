@@ -1,18 +1,18 @@
-﻿namespace miloonline.net.JobActor
+﻿namespace net.miloonline.MuSvc
 
 open System
 open System.Text.RegularExpressions
 
-type internal Client =
+type internal MuSvcClient =
     {
         tcp     : Net.Sockets.TcpClient
         buffer  : byte []
     }
 
-type internal ActorMsg =
-    | ProcessInput of Client * string
-    | ClientCount of Client
-    | RemoveClient of Client
+type internal ClientMsg =
+    | ProcessInput of MuSvcClient * string
+    | ClientCount of MuSvcClient
+    | RemoveClient of MuSvcClient
 
 module internal Client =
     let private isConnected client =
@@ -24,16 +24,16 @@ module internal Client =
         with
         | :? ObjectDisposedException -> false
 
-    let private sendRequest (actor: MailboxProcessor<ActorMsg>) client (request: string) =
+    let private sendRequest (mb: MailboxProcessor<ClientMsg>) client (request: string) =
         match request with
         | r when r.Equals (Command.ClientCount, StringComparison.OrdinalIgnoreCase) ->
             ClientCount client
         | r when r.Equals (Command.Quit, StringComparison.OrdinalIgnoreCase) ->
             RemoveClient client
         | r -> ProcessInput (client, r)
-        |> actor.Post
+        |> mb.Post
 
-    let rec clientLoopAsync (actor: MailboxProcessor<ActorMsg>) sb cl =
+    let rec clientLoopAsync (mb: MailboxProcessor<ClientMsg>) sb cl =
         async {
             try
                 match! cl.tcp.GetStream().AsyncRead (cl.buffer, 0, cl.buffer.Length) with
@@ -41,23 +41,24 @@ module internal Client =
                     Text.Encoding.UTF8.GetString (cl.buffer, 0, byteCount)
                     |> Printf.bprintf sb "%s"
 
-                    let m = Regex.Match (string sb, $"^.*{Regex.Escape Terminator}")
+                    let m = Regex.Match (string sb, $"^.*{Regex.Escape MsgTerminator}")
                     let quit =
                         m.Success
                         && (
                             sb.Remove (0, m.Value.Length) |> ignore
 
-                            m.Value.Split ([| Terminator |], StringSplitOptions.RemoveEmptyEntries)
+                            m.Value.Split
+                                ([| MsgTerminator |], StringSplitOptions.RemoveEmptyEntries)
                             |> Array.exists (fun t ->
-                                sendRequest actor cl t
+                                sendRequest mb cl t
                                 t.Equals (Command.Quit, StringComparison.OrdinalIgnoreCase)))
 
-                    if not quit then return! clientLoopAsync actor sb cl
+                    if not quit then return! clientLoopAsync mb sb cl
                 | _ ->
                     if isConnected cl then
-                        return! clientLoopAsync actor sb cl
+                        return! clientLoopAsync mb sb cl
                     else
-                        sendRequest actor cl Command.Quit
+                        sendRequest mb cl Command.Quit
             with
                 _ -> ()
         }
