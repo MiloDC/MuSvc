@@ -3,7 +3,7 @@ A .NET library that demonstrates a microservice written in F#.
 
 ### Usage example
 ```
-#r @"bin\Debug\net5.0\MuSvc.dll"
+#r @"bin\Release\net5.0\MuSvc.dll"
 open net.miloonline.MuSvc
 
 // The function that processes each request received by the microservice.
