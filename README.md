@@ -6,7 +6,7 @@ A .NET library that demonstrates a microservice written in F#.
 #r @"bin\Debug\net5.0\MuSvc.dll"
 open net.miloonline.MuSvc
 
-// The function to be called for each request received by the microservice
+// The function that processes each request received by the microservice.
 let sleepSeconds seconds =
     match (System.Text.RegularExpressions.Regex.Match (seconds, "^[0-9.]+$")).Value with
     | "" -> Error "invalid input"
