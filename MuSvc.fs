@@ -93,7 +93,6 @@ module MuSvc =
 
     let create ``function`` port =
         let m = MuSvc (port, ``function``)
-
         MailboxProcessor.Start (
             fun inBox ->
                 m.Mailbox <- inBox
@@ -115,7 +114,6 @@ module MuSvc =
                 |> Async.TryCancelled
             , m.CancelSrc.Token)
         |> ignore
-
         printfn $"Microservice started at {m.IpAddress}:{m.Port}"
         m
 

@@ -31,7 +31,7 @@ Connected to microservice @ 10.9.8.72:4242
 Slept for 8.000 seconds.
 ```
 
-To kill the mcroservice:
+To kill the microservice:
 ```
 MuSvc.shutdown m
 ```

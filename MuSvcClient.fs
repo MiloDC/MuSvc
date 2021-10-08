@@ -17,7 +17,6 @@ type internal ClientMsg =
 module internal Client =
     let private isConnected client =
         let bytes = Array.zeroCreate<byte> 1
-
         try
             (not <| client.tcp.Client.Poll (0, Net.Sockets.SelectMode.SelectRead))
             || (0 <> client.tcp.Client.Receive (bytes, Net.Sockets.SocketFlags.Peek))
@@ -46,7 +45,6 @@ module internal Client =
                         m.Success
                         && (
                             sb.Remove (0, m.Value.Length) |> ignore
-
                             m.Value.Split
                                 ([| MsgTerminator |], StringSplitOptions.RemoveEmptyEntries)
                             |> Array.exists (fun t ->
