@@ -16,7 +16,7 @@ let sleepSeconds seconds =
         ms |> int |> System.Threading.Thread.Sleep
         sprintf "Slept for %.3f second%s." secs (if 1. = secs then "" else "s") |> Output
 
-let m = MuSvc.create sleepSeconds 1234
+let m = MuSvc.create sleepSeconds 4242
 ```
 
 `MuSvc.create` will send the IP address and port of the microservice to `stdout`.
