@@ -29,14 +29,15 @@ module internal Client =
         with
         | _ -> false
 
-    let private sendRequest (mb : MailboxProcessor<ClientMsg>) req cl =
+    let private sendRequest cl (mb : MailboxProcessor<ClientMsg>) (req : byte array) =
         cmdMsgs
-        |> Seq.tryFind (fun (cmdBytes, _) -> 0 = memcmp (cmdBytes, req, req.LongLength))
+        |> Seq.tryFind (fun (cmdBytes, _) ->
+            (cmdBytes.Length = req.Length) && (0 = memcmp (cmdBytes, req, req.LongLength)))
         |> Option.bind (fun (_, msgFn) -> msgFn cl |> Some)
         |> Option.defaultValue (ProcessRequest (cl, req))
         |> mb.Post
 
-    let rec clientLoopAsync mb (stream : IO.MemoryStream) cl =
+    let rec clientLoopAsync cl mb (stream : IO.MemoryStream) =
         async {
             try
                 match! cl.tcp.GetStream().AsyncRead (cl.buffer, 0, cl.buffer.Length) with
@@ -45,25 +46,28 @@ module internal Client =
                     let span = ReadOnlySpan (stream.ToArray ())
                     let mtSpan = ReadOnlySpan msgTerminatorBytes
                     match span.IndexOf mtSpan with
-                    | -1 -> return! clientLoopAsync mb stream cl
+                    | -1 -> return! clientLoopAsync cl mb stream
                     | 0 ->
                         stream.Dispose ()
-                        return! clientLoopAsync mb (new IO.MemoryStream ()) cl
+                        return! new IO.MemoryStream () |> clientLoopAsync cl mb
                     | i ->
                         stream.Dispose ()
                         let req = (span.Slice (0, i)).ToArray ()
-                        sendRequest mb req cl
-                        if memcmp (req, Command.Quit, req.LongLength) <> 0 then
-                            let s =
+                        sendRequest cl mb req
+                        if
+                            (Command.Quit.Length <> req.Length)
+                            || (0 <> memcmp (req, Command.Quit, req.LongLength))
+                        then
+                            return!
                                 match i + mtSpan.Length with
-                                | trim when trim >= span.Length -> new IO.MemoryStream ()
+                                | trim when span.Length <= trim -> new IO.MemoryStream ()
                                 | trim -> new IO.MemoryStream ((span.Slice trim).ToArray ())
-                            return! clientLoopAsync mb s cl
+                                |> clientLoopAsync cl mb
                 | _ ->
                     if isConnected cl then
-                        return! clientLoopAsync mb stream cl
+                        return! clientLoopAsync cl mb stream
                     else
-                        sendRequest mb Command.Quit cl
+                        sendRequest cl mb Command.Quit
             with
                 _ -> ()
         }

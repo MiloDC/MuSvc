@@ -38,7 +38,7 @@ module MuSvc =
             | _ -> ()
         }
 
-    let rec private muSvcLoopAsync (m: MuSvc) : Async<unit> =
+    let rec private muSvcLoopAsync (m : MuSvc) : Async<unit> =
         async {
             try
                 match! m.Mailbox.Receive 125 with
@@ -75,7 +75,7 @@ module MuSvc =
                             |> Output
                             |> sendResultAsync client
                         do!
-                            Client.clientLoopAsync m.Mailbox (new IO.MemoryStream ()) client
+                            new IO.MemoryStream () |> Client.clientLoopAsync client m.Mailbox
                     }
                     |> Async.StartChild |> Async.Ignore
 
