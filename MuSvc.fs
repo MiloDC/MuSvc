@@ -42,24 +42,23 @@ module MuSvc =
         async {
             try
                 match! m.Mailbox.Receive 125 with
-                | ProcessInput (client, item) ->
-                    do!
-                        async { do! m.Fn item |> sendResultAsync client }
-                        |> Async.StartChild
-                        |> Async.Ignore
+                | ProcessInput (client, bytes) ->
+                    if bytes.Length > 0 then
+                        do!
+                            async { do! m.Fn bytes |> sendResultAsync client }
+                            |> Async.StartChild |> Async.Ignore
                 | ClientCount client ->
                     do!
                         async {
                             do!
-                                lock m.Connections (fun _ -> m.Connections.Count)
+                                lock m.Connections (fun () -> m.Connections.Count)
                                 |> string
                                 |> Output
                                 |> sendResultAsync client
                         }
-                        |> Async.StartChild
-                        |> Async.Ignore
+                        |> Async.StartChild |> Async.Ignore
                 | RemoveClient client ->
-                    lock m.Connections (fun _ -> m.Connections.Remove client) |> ignore
+                    lock m.Connections (fun () -> m.Connections.Remove client) |> ignore
                     client.tcp.Close ()
             with
             | :? TimeoutException -> ()
@@ -82,11 +81,9 @@ module MuSvc =
                             |> Output
                             |> sendResultAsync client
                         do!
-                            client
-                            |> Client.clientLoopAsync m.Mailbox (System.Text.StringBuilder ())
+                            Client.clientLoopAsync m.Mailbox (new IO.MemoryStream ()) client
                     }
-                    |> Async.StartChild
-                    |> Async.Ignore
+                    |> Async.StartChild |> Async.Ignore
 
             return! muSvcLoopAsync m
         }
@@ -114,10 +111,11 @@ module MuSvc =
                 |> Async.TryCancelled
             , m.CancelSrc.Token)
         |> ignore
+
         printfn $"Microservice started at {m.IpAddress}:{m.Port}"
         m
 
     let shutdown (m: MuSvc) =
-        m.CancelSrc.Cancel ()
-        printfn ""
-        printfn $"Microservice at {m.IpAddress}:{m.Port} shut down."
+        if not m.CancelSrc.IsCancellationRequested then
+            m.CancelSrc.Cancel ()
+            printfn $"Shutdown request sent to microservice at {m.IpAddress}:{m.Port}."

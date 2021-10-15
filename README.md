@@ -7,12 +7,12 @@ A .NET library that demonstrates a microservice written in F#.
 open net.miloonline.MuSvc
 
 // The function that processes each request received by the microservice.
-let sleepSeconds (seconds : string) =
-    match System.Double.TryParse seconds with
+let sleepSeconds (seconds : byte array) =
+    match Text.Encoding.UTF8.GetString seconds |> Double.TryParse with
     | false, _ -> Error "invalid input"
     | true, s ->
-        let secs = System.Math.Round (s, 3)
-        secs * 1000. |> int |> System.Threading.Thread.Sleep
+        let secs = Math.Round (s, 3)
+        secs * 1000. |> int |> Threading.Thread.Sleep
         sprintf "Slept for %.3f second%s." secs (if 1. = secs then "" else "s") |> Output
 
 let m = MuSvc.create sleepSeconds 4242

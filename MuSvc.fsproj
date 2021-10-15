@@ -12,11 +12,10 @@
     <Compile Include="Global.fs" />
     <Compile Include="MuSvcClient.fs" />
     <Compile Include="MuSvc.fs" />
-    <None Include="TestMuSvc.fsx" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Update="FSharp.Core" Version="5.0.1" />
+    <PackageReference Update="FSharp.Core" Version="5.0.2" />
   </ItemGroup>
 
 </Project>
