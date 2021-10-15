@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <Compile Include="Global.fs" />
-    <Compile Include="MuSvcClient.fs" />
+    <Compile Include="Client.fs" />
     <Compile Include="MuSvc.fs" />
   </ItemGroup>
 

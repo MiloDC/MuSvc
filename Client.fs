@@ -2,17 +2,18 @@
 
 open System
 
-type internal MuSvcClient =
+type internal Client =
     {
         tcp     : Net.Sockets.TcpClient
         buffer  : byte array
     }
 
 type internal ClientMsg =
-    | ProcessRequest of MuSvcClient * byte array
-    | ClientCount of MuSvcClient
-    | RemoveClient of MuSvcClient
+    | ProcessRequest of Client * byte array
+    | ClientCount of Client
+    | RemoveClient of Client
 
+[<RequireQualifiedAccess>]
 module internal Client =
     let private cmdMsgs =
         [
@@ -36,7 +37,7 @@ module internal Client =
         |> Option.defaultValue (ProcessRequest (cl, req))
         |> mb.Post
 
-    let rec clientLoopAsync cl mb (stream : IO.MemoryStream) =
+    let rec loopAsync cl mb (stream : IO.MemoryStream) =
         async {
             try
                 match! cl.tcp.GetStream().AsyncRead (cl.buffer, 0, cl.buffer.Length) with
@@ -45,10 +46,10 @@ module internal Client =
                     let span = ReadOnlySpan (stream.ToArray ())
                     let mtSpan = ReadOnlySpan msgTerminatorBytes
                     match span.IndexOf mtSpan with
-                    | -1 -> return! clientLoopAsync cl mb stream
+                    | -1 -> return! loopAsync cl mb stream
                     | 0 ->
                         stream.Dispose ()
-                        return! new IO.MemoryStream () |> clientLoopAsync cl mb
+                        return! new IO.MemoryStream () |> loopAsync cl mb
                     | i ->
                         stream.Dispose ()
                         let req = (span.Slice (0, i)).ToArray ()
@@ -58,10 +59,10 @@ module internal Client =
                                 match i + mtSpan.Length with
                                 | trim when span.Length <= trim -> new IO.MemoryStream ()
                                 | trim -> new IO.MemoryStream ((span.Slice trim).ToArray ())
-                                |> clientLoopAsync cl mb
+                                |> loopAsync cl mb
                 | _ ->
                     if isConnected cl then
-                        return! clientLoopAsync cl mb stream
+                        return! loopAsync cl mb stream
                     else
                         sendRequest cl mb Command.Quit
             with

@@ -23,7 +23,7 @@ type MuSvc internal (port, fn) =
     member val internal Listener = listener with get
     [<DefaultValue>]val mutable internal Mailbox : MailboxProcessor<ClientMsg>
     member val internal Fn = fn with get
-    member val internal Clients = ResizeArray<MuSvcClient> () with get
+    member val internal Clients = ResizeArray<Client> () with get
     member val internal CancelSrc = new Threading.CancellationTokenSource () with get
 
 [<RequireQualifiedAccess>]
@@ -75,7 +75,7 @@ module MuSvc =
                             |> Output
                             |> sendResultAsync client
                         do!
-                            new IO.MemoryStream () |> Client.clientLoopAsync client m.Mailbox
+                            new IO.MemoryStream () |> Client.loopAsync client m.Mailbox
                     }
                     |> Async.StartChild |> Async.Ignore
 
