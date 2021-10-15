@@ -9,9 +9,10 @@ open net.miloonline.MuSvc
 // The function that processes each request received by the microservice.
 let sleepSeconds (seconds : byte array) =
     match Text.Encoding.UTF8.GetString seconds |> Double.TryParse with
-    | false, _ -> Error "invalid input"
+    | false, _ -> Error "invalid request"
+    | true, s when s < 0. -> Error "invalid request"
     | true, s ->
-        let secs = Math.Round (s, 3)
+        let secs = Math.Round (s, 3) |> Math.Abs    // In case -0
         secs * 1000. |> int |> Threading.Thread.Sleep
         sprintf "Slept for %.3f second%s." secs (if 1. = secs then "" else "s") |> Output
 

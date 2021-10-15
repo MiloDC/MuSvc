@@ -43,10 +43,9 @@ module MuSvc =
             try
                 match! m.Mailbox.Receive 125 with
                 | ProcessInput (client, bytes) ->
-                    if bytes.Length > 0 then
-                        do!
-                            async { do! m.Fn bytes |> sendResultAsync client }
-                            |> Async.StartChild |> Async.Ignore
+                    do!
+                        async { do! m.Fn bytes |> sendResultAsync client }
+                        |> Async.StartChild |> Async.Ignore
                 | ClientCount client ->
                     do!
                         async {
