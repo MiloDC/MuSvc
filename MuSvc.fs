@@ -23,7 +23,7 @@ type MuSvc internal (port, fn) =
     member val internal Listener = listener with get
     [<DefaultValue>]val mutable internal Mailbox : MailboxProcessor<ClientMsg>
     member val internal Fn = fn with get
-    member val internal Connections = ResizeArray<MuSvcClient> () with get
+    member val internal Clients = ResizeArray<MuSvcClient> () with get
     member val internal CancelSrc = new Threading.CancellationTokenSource () with get
 
 [<RequireQualifiedAccess>]
@@ -50,15 +50,14 @@ module MuSvc =
                     do!
                         async {
                             do!
-                                lock m.Connections (fun () -> m.Connections.Count)
-                                |> string
-                                |> Output
+                                lock m.Clients (fun () -> m.Clients.Count)
+                                |> string |> Output
                                 |> sendResultAsync client
                         }
                         |> Async.StartChild |> Async.Ignore
                 | RemoveClient client ->
-                    lock m.Connections (fun () -> m.Connections.Remove client) |> ignore
                     client.tcp.Close ()
+                    lock m.Clients (fun () -> m.Clients.Remove client) |> ignore
             with
             | :? TimeoutException -> ()
 
@@ -66,12 +65,8 @@ module MuSvc =
                 let! tcpClient =
                     Async.FromBeginEnd (
                         m.Listener.BeginAcceptTcpClient, m.Listener.EndAcceptTcpClient )
-                let client =
-                    {
-                        tcp = tcpClient
-                        buffer = Array.zeroCreate 8192
-                    }
-                lock m.Connections (fun () -> m.Connections.Add client)
+                let client = { tcp = tcpClient; buffer = Array.zeroCreate 8192 }
+                lock m.Clients (fun () -> m.Clients.Add client)
                 do!
                     async {
                         do!
@@ -102,10 +97,9 @@ module MuSvc =
                             m.Listener.Server.Shutdown SocketShutdown.Both
                         with
                         | :? SocketException -> ()
-
                         m.Listener.Server.Close ()
-                        lock m.Connections (fun () ->
-                            m.Connections |> Seq.iter (fun c -> c.tcp.Close ()))
+
+                        lock m.Clients (fun () -> m.Clients |> Seq.iter (fun c -> c.tcp.Close ()))
                 )
                 |> Async.TryCancelled
             , m.CancelSrc.Token)
