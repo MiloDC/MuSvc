@@ -31,8 +31,7 @@ module internal Client =
 
     let private sendRequest cl (mb : MailboxProcessor<ClientMsg>) (req : byte array) =
         cmdMsgs
-        |> Seq.tryFind (fun (cmdBytes, _) ->
-            (cmdBytes.Length = req.Length) && (0 = memcmp (cmdBytes, req, req.LongLength)))
+        |> Seq.tryFind (fun (cmdBytes, _) -> bytesMatch cmdBytes req)
         |> Option.bind (fun (_, msgFn) -> msgFn cl |> Some)
         |> Option.defaultValue (ProcessRequest (cl, req))
         |> mb.Post
@@ -54,10 +53,7 @@ module internal Client =
                         stream.Dispose ()
                         let req = (span.Slice (0, i)).ToArray ()
                         sendRequest cl mb req
-                        if
-                            (Command.Quit.Length <> req.Length)
-                            || (0 <> memcmp (req, Command.Quit, req.LongLength))
-                        then
+                        if not <| bytesMatch Command.Quit req then
                             return!
                                 match i + mtSpan.Length with
                                 | trim when span.Length <= trim -> new IO.MemoryStream ()
