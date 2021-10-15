@@ -48,10 +48,10 @@ module internal Client =
                     match span.IndexOf mtSpan with
                     | -1 -> return! loopAsync cl mb stream
                     | 0 ->
-                        stream.Dispose ()
+                        do! stream.DisposeAsync().AsTask () |> Async.AwaitTask
                         return! new IO.MemoryStream () |> loopAsync cl mb
                     | i ->
-                        stream.Dispose ()
+                        stream.Dispose ()   // Cannot be done asynchronously before Span ops.
                         let req = (span.Slice (0, i)).ToArray ()
                         sendRequest cl mb req
                         if not <| bytesMatch Command.Quit req then
