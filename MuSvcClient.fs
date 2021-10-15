@@ -29,7 +29,7 @@ module internal Client =
         with
         | _ -> false
 
-    let private sendRequest (mb: MailboxProcessor<ClientMsg>) req cl =
+    let private sendRequest (mb : MailboxProcessor<ClientMsg>) req cl =
         cmdMsgs
         |> Seq.tryFind (fun (cmdBytes, _) -> 0 = memcmp (cmdBytes, req, req.LongLength))
         |> Option.bind (fun (_, msgFn) -> msgFn cl |> Some)

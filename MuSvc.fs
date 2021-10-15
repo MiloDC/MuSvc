@@ -108,7 +108,7 @@ module MuSvc =
         printfn $"Microservice started at {m.IpAddress}:{m.Port}"
         m
 
-    let shutdown (m: MuSvc) =
+    let shutdown (m : MuSvc) =
         if not m.CancelSrc.IsCancellationRequested then
             m.CancelSrc.Cancel ()
             printfn $"Shutdown request sent to microservice at {m.IpAddress}:{m.Port}."
