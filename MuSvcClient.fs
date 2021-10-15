@@ -1,7 +1,6 @@
 ﻿namespace net.miloonline.MuSvc
 
 open System
-open System.Text.RegularExpressions
 
 type internal MuSvcClient =
     {
@@ -10,7 +9,7 @@ type internal MuSvcClient =
     }
 
 type internal ClientMsg =
-    | ProcessInput of MuSvcClient * byte array
+    | ProcessRequest of MuSvcClient * byte array
     | ClientCount of MuSvcClient
     | RemoveClient of MuSvcClient
 
@@ -34,7 +33,7 @@ module internal Client =
         cmdMsgs
         |> Seq.tryFind (fun (cmdBytes, _) -> 0 = memcmp (cmdBytes, req, req.LongLength))
         |> Option.bind (fun (_, msgFn) -> msgFn cl |> Some)
-        |> Option.defaultValue (ProcessInput (cl, req))
+        |> Option.defaultValue (ProcessRequest (cl, req))
         |> mb.Post
 
     let rec clientLoopAsync mb (stream : IO.MemoryStream) cl =
