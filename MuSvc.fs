@@ -99,7 +99,9 @@ module MuSvc =
                         | :? SocketException -> ()
                         m.Listener.Server.Close ()
 
-                        lock m.Clients (fun () -> m.Clients |> Seq.iter (fun cl -> cl.Close ()))
+                        lock m.Clients (fun () ->
+                            m.Clients |> Seq.iter (fun cl -> cl.Close ())
+                            m.Clients.Clear ())
                 )
                 |> Async.TryCancelled
             , m.CancelSrc.Token)
