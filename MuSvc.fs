@@ -21,19 +21,19 @@ type MuSvc internal (port, fn) =
     member val IpAddress = string ipAddr with get
     member val Port = port with get
     member val internal Listener = listener with get
-    [<DefaultValue>]val mutable internal Mailbox : MailboxProcessor<ClientMsg>
+    [<DefaultValue>]val mutable internal Mailbox : MailboxProcessor<Client.Msg>
     member val internal Fn = fn with get
-    member val internal Clients = ResizeArray<Client> () with get
+    member val internal Clients = ResizeArray<TcpClient> () with get
     member val internal CancelSrc = new Threading.CancellationTokenSource () with get
 
 [<RequireQualifiedAccess>]
 module MuSvc =
-    let private sendResultAsync client result =
+    let private sendResultAsync (client : TcpClient) result =
         async {
             let text = match result with Output o -> o | Error e -> $"? {e}"
             let bytes = sprintf "%s%s" text MsgTerminator |> Text.Encoding.UTF8.GetBytes
             try
-                do! client.tcp.GetStream().AsyncWrite (bytes, 0, bytes.Length)
+                do! client.GetStream().AsyncWrite (bytes, 0, bytes.Length)
             with
             | _ -> ()
         }
@@ -41,12 +41,12 @@ module MuSvc =
     let rec private muSvcLoopAsync (m : MuSvc) : Async<unit> =
         async {
             try
-                match! m.Mailbox.Receive 125 with
-                | ProcessRequest (client, bytes) ->
+                match! m.Mailbox.Receive 50 with
+                | Client.ProcessRequest (client, bytes) ->
                     do!
                         async { do! m.Fn bytes |> sendResultAsync client }
                         |> Async.StartChild |> Async.Ignore
-                | ClientCount client ->
+                | Client.ClientCount client ->
                     do!
                         async {
                             do!
@@ -55,17 +55,16 @@ module MuSvc =
                                 |> sendResultAsync client
                         }
                         |> Async.StartChild |> Async.Ignore
-                | RemoveClient client ->
-                    client.tcp.Close ()
+                | Client.RemoveClient client ->
+                    client.Close ()
                     lock m.Clients (fun () -> m.Clients.Remove client) |> ignore
             with
             | :? TimeoutException -> ()
 
             if m.Listener.Pending () then
-                let! tcpClient =
+                let! client =
                     Async.FromBeginEnd (
                         m.Listener.BeginAcceptTcpClient, m.Listener.EndAcceptTcpClient )
-                let client = { tcp = tcpClient; buffer = Array.zeroCreate 8192 }
                 lock m.Clients (fun () -> m.Clients.Add client)
                 do!
                     async {
@@ -75,7 +74,8 @@ module MuSvc =
                             |> Output
                             |> sendResultAsync client
                         do!
-                            new IO.MemoryStream () |> Client.loopAsync client m.Mailbox
+                            new IO.MemoryStream ()
+                            |> Client.loopAsync client (Array.zeroCreate 8192) m.Mailbox
                     }
                     |> Async.StartChild |> Async.Ignore
 
@@ -99,7 +99,7 @@ module MuSvc =
                         | :? SocketException -> ()
                         m.Listener.Server.Close ()
 
-                        lock m.Clients (fun () -> m.Clients |> Seq.iter (fun c -> c.tcp.Close ()))
+                        lock m.Clients (fun () -> m.Clients |> Seq.iter (fun cl -> cl.Close ()))
                 )
                 |> Async.TryCancelled
             , m.CancelSrc.Token)
