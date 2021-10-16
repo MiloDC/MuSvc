@@ -44,7 +44,7 @@ let rec loopAsync (cl : TcpClient) buf mb (stream : IO.MemoryStream) =
                     do! stream.DisposeAsync().AsTask () |> Async.AwaitTask
                     return! new IO.MemoryStream () |> loopAsync cl buf mb
                 | i ->
-                    stream.Dispose ()   // Cannot be done asynchronously before Span ops.
+                    stream.Dispose ()   // Cannot be done asynchronously before Span operations.
                     let req = (span.Slice (0, i)).ToArray ()
                     sendRequest cl mb req
                     if not <| bytesMatch Command.Quit req then
