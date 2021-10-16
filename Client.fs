@@ -1,10 +1,10 @@
 ﻿[<RequireQualifiedAccess>]
-module net.miloonline.MuSvc.Client
+module internal net.miloonline.MuSvc.Client
 
 open System
 open System.Net.Sockets
 
-type internal Msg =
+type Msg =
     | ProcessRequest of TcpClient * byte array
     | ClientCount of TcpClient
     | RemoveClient of TcpClient
@@ -31,7 +31,7 @@ let private sendRequest cl (mb : MailboxProcessor<Msg>) (req : byte array) =
     |> Option.defaultValue (ProcessRequest (cl, req))
     |> mb.Post
 
-let rec internal loopAsync (cl : TcpClient) buf mb (stream : IO.MemoryStream) =
+let rec loopAsync (cl : TcpClient) buf mb (stream : IO.MemoryStream) =
     async {
         try
             match! cl.GetStream().AsyncRead (buf, 0, buf.Length) with

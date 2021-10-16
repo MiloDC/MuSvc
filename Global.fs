@@ -1,5 +1,5 @@
 ﻿[<AutoOpen>]
-module net.miloonline.MuSvc.Global
+module internal net.miloonline.MuSvc.Global
 
 open System
 open System.Runtime.InteropServices
