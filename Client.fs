@@ -50,15 +50,15 @@ module internal Client =
                         do! stream.DisposeAsync().AsTask () |> Async.AwaitTask
                         return! new IO.MemoryStream () |> loopAsync cl mb
                     | i ->
-                        stream.Dispose ()   // Async not possible before Span operations.
                         let req = (span.Slice (0, i)).ToArray ()
                         sendRequest cl mb req
                         if not <| bytesMatch Command.Quit req then
-                            return!
+                            let s =
                                 match i + MsgTerminatorBytes.Length with
                                 | trim when span.Length <= trim -> new IO.MemoryStream ()
                                 | trim -> new IO.MemoryStream ((span.Slice trim).ToArray ())
-                                |> loopAsync cl mb
+                            do! stream.DisposeAsync().AsTask () |> Async.AwaitTask
+                            return! loopAsync cl mb s
                 | _ ->
                     if isConnected cl then
                         return! loopAsync cl mb stream
@@ -66,4 +66,6 @@ module internal Client =
                         sendRequest cl mb Command.Quit
             with
                 _ -> ()
+
+            do! stream.DisposeAsync().AsTask () |> Async.AwaitTask
         }
