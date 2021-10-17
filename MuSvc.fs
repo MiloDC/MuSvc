@@ -76,8 +76,7 @@ module MuSvc =
                 do!
                     async {
                         do!
-                            $"{MsgTerminator}Connected to microservice @ \
-                                {m.IpAddress}:{m.Port}{MsgTerminator}"
+                            $"Connected to microservice @ {m.IpAddress}:{m.Port}"
                             |> String
                             |> sendResultAsync client
                         do!
