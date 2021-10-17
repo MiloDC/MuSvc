@@ -10,6 +10,7 @@ module private Native =
     extern int memcmp (byte[] bytes1, byte[] bytes2, int64 count)
 
 let [<Literal>] MsgTerminator = "\r\n"
+let MsgTerminatorBytes = Text.Encoding.UTF8.GetBytes MsgTerminator
 
 let bytesMatch (bytes1 : byte array) (bytes2 : byte array) =
     (bytes1.LongLength = bytes2.LongLength)

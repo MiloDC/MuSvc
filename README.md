@@ -12,9 +12,9 @@ let sleepSeconds (input : byte array) =
     | false, _ -> Error "invalid request"
     | true, secs when secs < 0. -> Error "invalid request"
     | true, secs ->
-        let s = Math.Round (secs, 3) |> Math.Abs    // Abs in case -0
+        let s = Math.Round (secs, 3) |> Math.Abs    // In case -0
         s * 1000. |> int |> Threading.Thread.Sleep
-        sprintf "Slept for %.3f second%s." s (if 1. = s then "" else "s") |> Output
+        sprintf "Slept for %.3f second%s." s (if 1. = s then "" else "s") |> String
 
 let m = MuSvc.create sleepSeconds 4242
 ```
