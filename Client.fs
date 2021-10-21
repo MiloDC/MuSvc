@@ -30,12 +30,27 @@ module internal Client =
         with
         | _ -> false
 
-    let private sendRequest cl (mb : MailboxProcessor<ClientMsg>) req =
+    let private submitRequest cl (mb : MailboxProcessor<ClientMsg>) req =
         cmdMsgs
         |> Seq.tryFind (fun (cmdBytes, _) -> bytesMatch cmdBytes req)
         |> Option.bind (fun (_, msgFn) -> msgFn cl |> Some)
         |> Option.defaultValue (ProcessRequest (cl, req))
         |> mb.Post
+
+    let sendResultAsync client result =
+        async {
+            try
+                do!
+                    MsgTerminatorBytes
+                    |> Array.append (
+                        match result with
+                        | Bytes b -> b
+                        | Text t -> Text.Encoding.UTF8.GetBytes t
+                        | Error e -> $"? {e} ?" |> Text.Encoding.UTF8.GetBytes)
+                    |> client.tcp.GetStream().AsyncWrite
+            with
+            | _ -> ()
+        }
 
     let rec loopAsync cl mb (stream : IO.MemoryStream) =
         async {
@@ -51,7 +66,7 @@ module internal Client =
                         return! new IO.MemoryStream () |> loopAsync cl mb
                     | i ->
                         let req = (span.Slice (0, i)).ToArray ()
-                        sendRequest cl mb req
+                        submitRequest cl mb req
                         if not <| bytesMatch Command.Quit req then
                             let s =
                                 match i + MsgTerminatorBytes.Length with
@@ -63,7 +78,7 @@ module internal Client =
                     if isConnected cl then
                         return! loopAsync cl mb stream
                     else
-                        sendRequest cl mb Command.Quit
+                        submitRequest cl mb Command.Quit
             with
                 _ -> ()
 

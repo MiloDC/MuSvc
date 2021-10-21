@@ -3,11 +3,6 @@
 open System
 open System.Net.Sockets
 
-type MuSvcResult =
-    | Bytes of byte array
-    | String of string
-    | Error of string
-
 type MuSvc internal (port, fn) =
     let ipAddr =
         use socket = new Socket (AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
@@ -29,36 +24,21 @@ type MuSvc internal (port, fn) =
 
 [<RequireQualifiedAccess>]
 module MuSvc =
-    let private sendResultAsync client result =
-        async {
-            try
-                do!
-                    MsgTerminatorBytes
-                    |> Array.append (
-                        match result with
-                        | Bytes b -> b
-                        | String s -> Text.Encoding.UTF8.GetBytes s
-                        | Error e -> $"? {e} ?" |> Text.Encoding.UTF8.GetBytes)
-                    |> client.tcp.GetStream().AsyncWrite
-            with
-            | _ -> ()
-        }
-
     let rec private muSvcLoopAsync (m : MuSvc) : Async<unit> =
         async {
             try
                 match! m.Mailbox.Receive 50 with
                 | ProcessRequest (client, bytes) ->
                     do!
-                        async { do! m.Fn bytes |> sendResultAsync client }
+                        async { do! m.Fn bytes |> Client.sendResultAsync client }
                         |> Async.StartChild |> Async.Ignore
                 | ClientCount client ->
                     do!
                         async {
                             do!
                                 lock m.Clients (fun () -> m.Clients.Count)
-                                |> string |> String
-                                |> sendResultAsync client
+                                |> string |> Text
+                                |> Client.sendResultAsync client
                         }
                         |> Async.StartChild |> Async.Ignore
                 | RemoveClient client ->
@@ -77,8 +57,8 @@ module MuSvc =
                     async {
                         do!
                             $"Connected to microservice @ {m.IpAddress}:{m.Port}"
-                            |> String
-                            |> sendResultAsync client
+                            |> Text
+                            |> Client.sendResultAsync client
                         do!
                             new IO.MemoryStream ()
                             |> Client.loopAsync client m.Mailbox

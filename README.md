@@ -15,21 +15,23 @@ let sleepSeconds (input : byte array) =
     | true, secs ->
         let s = Math.Round (secs, 3) |> Math.Abs    // In case -0
         s * 1000. |> int |> Threading.Thread.Sleep
-        sprintf "Slept for %.3f second%s." s (if 1. = s then "" else "s") |> String
+        sprintf "Slept for %.3f second%s." s (if 1. = s then "" else "s") |> Text
 
-let m = MuSvc.create sleepSeconds 4242
+let m = MuSvc.create sleepSeconds 6969
 ```
 
-`MuSvc.create` will send the IP address and port of the microservice to `stdout`.
+`MuSvc.create` will send the IP address and port of the microservice to `stdout`:
+```
+Microservice started at 10.9.8.7:6969
+```
 
-For the above example, assuming an IP address of `10.9.8.7` and a port of `4242`, the microservice might be invoked via telnet at a command prompt:
+For the above example, assuming an IP address of `10.9.8.7` and a port of `6969`, the microservice might be invoked via telnet at a command prompt:
 
 ```
-> telnet 10.9.8.7 4242
-Connected to microservice @ 10.9.8.72:4242
-
-8
-Slept for 8.000 seconds.
+C:\> telnet 10.9.8.7 6969
+Connected to microservice @ 10.9.8.7:6969
+3
+Slept for 3.000 seconds.
 ```
 
 To kill the microservice:
