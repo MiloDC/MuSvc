@@ -1,7 +1,6 @@
 ﻿namespace net.miloonline.MuSvc
 
 open System
-open System.Net.Sockets
 
 type internal Client =
     {
@@ -10,7 +9,7 @@ type internal Client =
     }
 
 type internal ClientMsg =
-    | ProcessRequest of Client * byte array
+    | Input of Client * byte array
     | ClientCount of Client
     | RemoveClient of Client
 
@@ -25,8 +24,8 @@ module internal Client =
     let private isConnected cl =
         let bytes = Array.zeroCreate<byte> 1
         try
-            (not <| cl.tcp.Client.Poll (0, SelectMode.SelectRead))
-            || (0 <> cl.tcp.Client.Receive (bytes, SocketFlags.Peek))
+            (not <| cl.tcp.Client.Poll (0, Net.Sockets.SelectMode.SelectRead))
+            || (0 <> cl.tcp.Client.Receive (bytes, Net.Sockets.SocketFlags.Peek))
         with
         | _ -> false
 
@@ -34,7 +33,7 @@ module internal Client =
         cmdMsgs
         |> Seq.tryFind (fun (cmdBytes, _) -> bytesMatch cmdBytes req)
         |> Option.bind (fun (_, msgFn) -> msgFn cl |> Some)
-        |> Option.defaultValue (ProcessRequest (cl, req))
+        |> Option.defaultValue (Input (cl, req))
         |> mb.Post
 
     let sendResultAsync client result =

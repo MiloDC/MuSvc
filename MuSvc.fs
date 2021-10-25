@@ -3,7 +3,7 @@
 open System
 open System.Net.Sockets
 
-type MuSvc internal (port, fn) =
+type MuSvc internal (processor : IMuSvcProcessor, port) =
     let ipAddr =
         use socket = new Socket (AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
         socket.Connect ("8.8.8.8", 65530)
@@ -18,7 +18,7 @@ type MuSvc internal (port, fn) =
     member val Port = port with get
     member val internal Listener = listener with get
     [<DefaultValue>]val mutable internal Mailbox : MailboxProcessor<ClientMsg>
-    member val internal Fn = fn with get
+    member val internal Processor = processor with get
     member val internal Clients = ResizeArray<Client> () with get
     member val internal CancelSrc = new Threading.CancellationTokenSource () with get
 
@@ -28,9 +28,11 @@ module MuSvc =
         async {
             try
                 match! m.Mailbox.Receive 50 with
-                | ProcessRequest (client, bytes) ->
+                | Input (client, bytes) ->
                     do!
-                        async { do! m.Fn bytes |> Client.sendResultAsync client }
+                        async {
+                            do! m.Processor.ProcessInput bytes |> Client.sendResultAsync client
+                        }
                         |> Async.StartChild |> Async.Ignore
                 | ClientCount client ->
                     do!
@@ -68,8 +70,8 @@ module MuSvc =
             return! muSvcLoopAsync m
         }
 
-    let create ``function`` port =
-        let m = MuSvc (port, ``function``)
+    let create port processor =
+        let m = MuSvc (processor, port)
         MailboxProcessor.Start (
             fun inBox ->
                 m.Mailbox <- inBox
