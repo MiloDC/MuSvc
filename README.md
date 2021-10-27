@@ -17,7 +17,7 @@ type Sleeper () =
             | true, secs ->
                 let s = Math.Round (secs, 3) |> Math.Abs    // In case -0
                 s * 1000. |> int |> Threading.Thread.Sleep
-                sprintf "Slept for %.3f second%s." s (if 1. = s then "" else "s") |> Text
+                sprintf "Slept for %.3f seconds." s |> Text
 
 // On port 6969, start a microservice that counts sheep for the requested number of seconds:
 let m = MuSvc<Sleeper> 6969
