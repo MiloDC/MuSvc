@@ -3,7 +3,7 @@
 open System
 open System.Net.Sockets
 
-type MuSvc internal (processor : IMuSvcProcessor, port) =
+type MuSvc internal (port) =
     let ipAddr =
         use socket = new Socket (AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
         socket.Connect ("8.8.8.8", 65530)
@@ -18,13 +18,13 @@ type MuSvc internal (processor : IMuSvcProcessor, port) =
     member val Port = port with get
     member val internal Listener = listener with get
     [<DefaultValue>]val mutable internal Mailbox : MailboxProcessor<ClientMsg>
-    member val internal Processor = processor with get
+    [<DefaultValue>]val mutable internal Processor : IMuSvcProcessor
     member val internal Clients = ResizeArray<Client> () with get
     member val internal CancelSrc = new Threading.CancellationTokenSource () with get
 
 [<RequireQualifiedAccess>]
 module MuSvc =
-    let rec private muSvcLoopAsync (m : MuSvc) : Async<unit> =
+    let rec internal loopAsync (m : MuSvc) : Async<unit> =
         async {
             try
                 match! m.Mailbox.Receive 50 with
@@ -67,38 +67,40 @@ module MuSvc =
                     }
                     |> Async.StartChild |> Async.Ignore
 
-            return! muSvcLoopAsync m
+            return! loopAsync m
         }
-
-    let create port processor =
-        let m = MuSvc (processor, port)
-        MailboxProcessor.Start (
-            fun inBox ->
-                m.Mailbox <- inBox
-                (
-                    muSvcLoopAsync m,
-                    fun _ ->
-                        // This sequence executes when muSvcLoopAsync is cancelled by
-                        // calling the Cancel() method of the microservice's CancelSrc property.
-                        m.Listener.Stop ()
-                        try
-                            m.Listener.Server.Shutdown SocketShutdown.Both
-                        with
-                        | :? SocketException -> ()
-                        m.Listener.Server.Close ()
-
-                        lock m.Clients (fun () ->
-                            m.Clients |> Seq.iter (fun cl -> cl.tcp.Close ())
-                            m.Clients.Clear ())
-                )
-                |> Async.TryCancelled
-            , m.CancelSrc.Token)
-        |> ignore
-
-        printfn $"Microservice started at {m.IpAddress}:{m.Port}"
-        m
 
     let shutdown (m : MuSvc) =
         if not m.CancelSrc.IsCancellationRequested then
             m.CancelSrc.Cancel ()
             printfn $"Shutdown request sent to microservice at {m.IpAddress}:{m.Port}."
+
+type MuSvc<'P when 'P :> IMuSvcProcessor and 'P : (new : unit -> 'P)> (port) as this =
+    inherit MuSvc (port)
+
+    do
+        MailboxProcessor.Start (
+            fun inBox ->
+                this.Mailbox <- inBox
+                this.Processor <- new 'P ()
+                (
+                    MuSvc.loopAsync this,
+                    fun _ ->
+                        // This sequence executes when muSvcLoopAsync is cancelled by
+                        // calling the Cancel() method of the microservice's CancelSrc property.
+                        this.Listener.Stop ()
+                        try
+                            this.Listener.Server.Shutdown SocketShutdown.Both
+                        with
+                        | :? SocketException -> ()
+                        this.Listener.Server.Close ()
+
+                        lock this.Clients (fun () ->
+                            this.Clients |> Seq.iter (fun cl -> cl.tcp.Close ())
+                            this.Clients.Clear ())
+                )
+                |> Async.TryCancelled
+            , this.CancelSrc.Token)
+        |> ignore
+
+        printfn $"Microservice started at {this.IpAddress}:{port}"
