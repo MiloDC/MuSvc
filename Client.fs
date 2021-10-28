@@ -17,10 +17,12 @@ type internal ClientMsg =
 module internal Client =
     let private cmds =
         [|
-            "/q", RemoveClient
             "/cc", ClientCount
+            "/q", RemoveClient
         |]
         |> Array.map (fun (str, cm) -> Text.Encoding.UTF8.GetBytes str, cm)
+
+    let private quitBytes = cmds |> Array.last |> fst
 
     let private isConnected cl =
         let bytes = Array.zeroCreate<byte> 1
@@ -52,7 +54,7 @@ module internal Client =
                     | i ->
                         let req = (span.Slice (0, i)).ToArray ()
                         submitRequest mb req cl
-                        if not <| bytesMatch (fst cmds.[0]) req then
+                        if not <| bytesMatch quitBytes req then
                             let s =
                                 match i + MsgTerminatorBytes.Length with
                                 | trim when span.Length <= trim -> new IO.MemoryStream ()
@@ -63,7 +65,7 @@ module internal Client =
                     if isConnected cl then
                         return! loopAsync mb stream cl
                     else
-                        submitRequest mb (fst cmds.[0]) cl
+                        submitRequest mb quitBytes cl
             with
                 _ -> ()
 
