@@ -15,11 +15,12 @@ type internal ClientMsg =
 
 [<RequireQualifiedAccess>]
 module internal Client =
-    let private cmdMsgs =
-        [
-            Command.ClientCount, ClientCount
-            Command.Quit, RemoveClient
-        ]
+    let private cmds =
+        [|
+            "/q", RemoveClient
+            "/cc", ClientCount
+        |]
+        |> Array.map (fun (str, cm) -> Text.Encoding.UTF8.GetBytes str, cm)
 
     let private isConnected cl =
         let bytes = Array.zeroCreate<byte> 1
@@ -29,29 +30,14 @@ module internal Client =
         with
         | _ -> false
 
-    let private submitRequest cl (mb : MailboxProcessor<ClientMsg>) req =
-        cmdMsgs
+    let private submitRequest (mb : MailboxProcessor<ClientMsg>) req cl =
+        cmds
         |> Seq.tryFind (fun (cmdBytes, _) -> bytesMatch cmdBytes req)
         |> Option.bind (fun (_, msgFn) -> msgFn cl |> Some)
         |> Option.defaultValue (Input (cl, req))
         |> mb.Post
 
-    let sendResultAsync client result =
-        async {
-            try
-                do!
-                    MsgTerminatorBytes
-                    |> Array.append (
-                        match result with
-                        | Bytes b -> b
-                        | Text t -> Text.Encoding.UTF8.GetBytes t
-                        | Error e -> $"? {e} ?" |> Text.Encoding.UTF8.GetBytes)
-                    |> client.tcp.GetStream().AsyncWrite
-            with
-            | _ -> ()
-        }
-
-    let rec loopAsync cl mb (stream : IO.MemoryStream) =
+    let rec loopAsync mb (stream : IO.MemoryStream) cl =
         async {
             try
                 match! cl.tcp.GetStream().AsyncRead cl.buf with
@@ -59,25 +45,25 @@ module internal Client =
                     do! stream.AsyncWrite (cl.buf, 0, readCount)
                     let span = ReadOnlySpan (stream.ToArray ())
                     match span.IndexOf (ReadOnlySpan MsgTerminatorBytes) with
-                    | -1 -> return! loopAsync cl mb stream
+                    | -1 -> return! loopAsync mb stream cl
                     | 0 ->
                         do! stream.DisposeAsync().AsTask () |> Async.AwaitTask
-                        return! new IO.MemoryStream () |> loopAsync cl mb
+                        return! loopAsync mb (new IO.MemoryStream ()) cl
                     | i ->
                         let req = (span.Slice (0, i)).ToArray ()
-                        submitRequest cl mb req
-                        if not <| bytesMatch Command.Quit req then
+                        submitRequest mb req cl
+                        if not <| bytesMatch (fst cmds.[0]) req then
                             let s =
                                 match i + MsgTerminatorBytes.Length with
                                 | trim when span.Length <= trim -> new IO.MemoryStream ()
                                 | trim -> new IO.MemoryStream ((span.Slice trim).ToArray ())
                             do! stream.DisposeAsync().AsTask () |> Async.AwaitTask
-                            return! loopAsync cl mb s
+                            return! loopAsync mb s cl
                 | _ ->
                     if isConnected cl then
-                        return! loopAsync cl mb stream
+                        return! loopAsync mb stream cl
                     else
-                        submitRequest cl mb Command.Quit
+                        submitRequest mb (fst cmds.[0]) cl
             with
                 _ -> ()
 
