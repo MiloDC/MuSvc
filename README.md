@@ -21,13 +21,15 @@ let m = MuSvc.create countSheep 6969
 Microservice started at 10.9.8.7:6969
 ```
 
-For the above example, the microservice might be invoked via `telnet` at a command prompt:
+For the above example, the microservice might be engaged via `telnet` at a command prompt:
 ```
 C:\> telnet 10.9.8.7 6969
 Connected to microservice @ 10.9.8.7:6969
 3
 Slept for 3.000 seconds.
 ```
+
+Reserved microservice commands are `/cc` to get the current count of connections to a microservice, and `/q` to disconnect from it (although simply closing the socket or otherwise dropping the connection is fine).
 
 To kill the microservice:
 ```
