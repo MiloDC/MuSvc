@@ -35,7 +35,7 @@ module internal Client =
     let private submitRequest (mb : MailboxProcessor<ClientMsg>) req cl =
         cmds
         |> Seq.tryFind (fun (cmdBytes, _) -> bytesMatch cmdBytes req)
-        |> Option.bind (fun (_, msgFn) -> msgFn cl |> Some)
+        |> Option.map (fun (_, msgFn) -> msgFn cl)
         |> Option.defaultValue (Input (cl, req))
         |> mb.Post
 
