@@ -1,15 +1,37 @@
-﻿[<AutoOpen>]
-module net.miloonline.MuSvc.Core
+﻿namespace net.miloonline.MuSvc
 
+open System
+open System.Reflection
 open System.Runtime.InteropServices
 
-[<RequireQualifiedAccess>]
-module private Native =
-    [<DllImport ("msvcrt.dll", CallingConvention = CallingConvention.Cdecl)>]
-    extern int memcmp (byte[] bytes1, byte[] bytes2, int64 count)
+[<Sealed>]
+type Native () =
+    static let dllImportResolver
+            libraryName (assm: Assembly) (searchPath: Nullable<DllImportSearchPath>) =
+        let libName =
+            match RuntimeInformation.IsOSPlatform OSPlatform.Windows, libraryName with
+            | false, "msvcrt" -> "libc"
+            | _ -> libraryName
 
-let internal MsgTerminatorBytes = "\r\n" |> System.Text.Encoding.UTF8.GetBytes
+        let mutable nativeLib = IntPtr.Zero
+        if NativeLibrary.TryLoad (libName, &nativeLib) then nativeLib else IntPtr.Zero
 
-let internal bytesMatch (bytes1 : byte array) (bytes2 : byte array) =
-    (bytes1.LongLength = bytes2.LongLength)
-    && (0 = Native.memcmp (bytes1, bytes2, bytes1.LongLength))
+    [<DllImport ("msvcrt", EntryPoint = "memcmp", CallingConvention = CallingConvention.Cdecl)>]
+    static extern int memcmp' (byte[] bytes1, byte[] bytes2, unativeint count)
+
+    static do
+        NativeLibrary.SetDllImportResolver (Assembly.GetExecutingAssembly (), dllImportResolver)
+
+    static member memcmp (lhs: byte array, rhs: byte array, count: uint64) =
+        memcmp' (lhs, rhs, unativeint count) |> sign
+
+    static member memcmp (lhs: byte array, rhs: byte array) =
+        memcmp' (lhs, rhs, unativeint (min lhs.LongLength rhs.LongLength)) |> sign
+
+[<AutoOpen>]
+module Core =
+    let internal MsgTerminatorBytes = "\r\n" |> System.Text.Encoding.UTF8.GetBytes
+
+    let internal bytesMatch (bytes1 : byte array) (bytes2 : byte array) =
+        (bytes1.LongLength = bytes2.LongLength)
+        && (Native.memcmp (bytes1, bytes2, uint64 bytes1.LongLength) = 0)
