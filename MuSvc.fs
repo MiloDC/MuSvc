@@ -10,9 +10,10 @@ type MuSvcResponse =
 
 type MuSvc internal (processInput, port) =
     let ipAddr =
-        use socket = new Socket (AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
-        socket.Connect ("8.8.8.8", 65530)
-        (socket.LocalEndPoint :?> System.Net.IPEndPoint).Address
+        use socket = new Socket (AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+        // Connect to Google's endpoint
+        socket.Connect ("8.8.8.8", 443)
+        (socket.LocalEndPoint :?> Net.IPEndPoint).Address
     let listener = new TcpListener (ipAddr, port)
 
     do
