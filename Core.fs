@@ -30,7 +30,7 @@ type Native () =
 
 [<AutoOpen>]
 module Core =
-    let internal MsgTerminatorBytes = "\r\n" |> System.Text.Encoding.UTF8.GetBytes
+    let internal MsgTerminatorBytes = "\r\n" |> Text.Encoding.UTF8.GetBytes
 
     let internal bytesMatch (bytes1 : byte array) (bytes2 : byte array) =
         (bytes1.LongLength = bytes2.LongLength)

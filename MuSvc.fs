@@ -3,7 +3,7 @@
 open System
 open System.Net.Sockets
 
-type MuSvcResult =
+type MuSvcResponse =
     | Bytes of byte array
     | Text of string
     | Error of string
@@ -13,7 +13,7 @@ type MuSvc internal (processInput, port) =
         use socket = new Socket (AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
         socket.Connect ("8.8.8.8", 65530)
         (socket.LocalEndPoint :?> System.Net.IPEndPoint).Address
-    let listener = TcpListener (ipAddr, port)
+    let listener = new TcpListener (ipAddr, port)
 
     do
         listener.Server.NoDelay <- true
@@ -26,6 +26,19 @@ type MuSvc internal (processInput, port) =
     [<DefaultValue>]val mutable internal Mailbox : MailboxProcessor<ClientMsg>
     member val internal Clients = ResizeArray<Client> () with get
     member val internal CancelSrc = new Threading.CancellationTokenSource () with get
+
+    interface IDisposable with
+        member this.Dispose () =
+            this.Listener.Stop ()
+            try
+                this.Listener.Server.Shutdown SocketShutdown.Both
+            with
+            | :? SocketException -> ()
+            this.Listener.Server.Close ()
+
+            lock this.Clients (fun () ->
+                this.Clients |> Seq.iter (fun cl -> cl.tcp.Close ())
+                this.Clients.Clear () )
 
 [<RequireQualifiedAccess>]
 module MuSvc =
@@ -44,79 +57,67 @@ module MuSvc =
             | _ -> ()
         }
 
-    let rec internal loopAsync (m : MuSvc) : Async<unit> =
+    let rec internal loopAsync (svc : MuSvc) : Async<unit> =
         async {
             try
-                match! m.Mailbox.Receive 50 with
+                match! svc.Mailbox.Receive 50 with
                 | Input (client, bytes) ->
                     do!
                         async {
-                            do! m.ProcessInput bytes |> sendResultAsync client
+                            do! svc.ProcessInput bytes |> sendResultAsync client
                         }
                         |> Async.StartChild |> Async.Ignore
                 | ClientCount client ->
                     do!
                         async {
                             do!
-                                lock m.Clients (fun () -> m.Clients.Count)
+                                lock svc.Clients (fun () -> svc.Clients.Count)
                                 |> string |> Text
                                 |> sendResultAsync client
                         }
                         |> Async.StartChild |> Async.Ignore
                 | RemoveClient client ->
                     client.tcp.Close ()
-                    lock m.Clients (fun () -> m.Clients.Remove client) |> ignore
+                    lock svc.Clients (fun () -> svc.Clients.Remove client) |> ignore
             with
             | :? TimeoutException -> ()
 
-            if m.Listener.Pending () then
+            if svc.Listener.Pending () then
                 let! tcpClient =
                     Async.FromBeginEnd (
-                        m.Listener.BeginAcceptTcpClient, m.Listener.EndAcceptTcpClient )
+                        svc.Listener.BeginAcceptTcpClient, svc.Listener.EndAcceptTcpClient )
                 let client = { tcp = tcpClient; buf = Array.zeroCreate 8192 }
-                lock m.Clients (fun () -> m.Clients.Add client)
+                lock svc.Clients (fun () -> svc.Clients.Add client)
                 do!
                     async {
                         do!
-                            $"Connected to microservice @ {m.IpAddress}:{m.Port}"
+                            $"Connected to microservice @ {svc.IpAddress}:{svc.Port}"
                             |> Text
                             |> sendResultAsync client
-                        do! Client.loopAsync m.Mailbox (new IO.MemoryStream ()) client
+                        do! Client.loopAsync svc.Mailbox (new IO.MemoryStream ()) client
                     }
-                    |> Async.StartChild |> Async.Ignore
+                    |> Async.StartChild
+                    |> Async.Ignore
 
-            return! loopAsync m
+            return! loopAsync svc
         }
 
-    let create (processInput : byte array -> MuSvcResult) port =
-        let m = MuSvc (processInput, port)
-        MailboxProcessor.Start (
-            fun inBox ->
-                m.Mailbox <- inBox
-                (
-                    loopAsync m,
-                    fun _ ->
-                        // This sequence executes when muSvcLoopAsync is cancelled by
-                        // calling the Cancel() method of the microservice's CancelSrc property.
-                        m.Listener.Stop ()
-                        try
-                            m.Listener.Server.Shutdown SocketShutdown.Both
-                        with
-                        | :? SocketException -> ()
-                        m.Listener.Server.Close ()
+    let create port (processInput : byte array -> MuSvcResponse) =
+        let svc = new MuSvc (processInput, port)
 
-                        lock m.Clients (fun () ->
-                            m.Clients |> Seq.iter (fun cl -> cl.tcp.Close ())
-                            m.Clients.Clear ())
+        MailboxProcessor.Start (
+            (fun inBox ->
+                svc.Mailbox <- inBox
+                (
+                    loopAsync svc,
+                    (fun _ -> (svc :> IDisposable).Dispose ())
                 )
-                |> Async.TryCancelled
-            , m.CancelSrc.Token)
+                |> Async.TryCancelled ),
+            svc.CancelSrc.Token )
         |> ignore
 
-        printfn $"Microservice started at {m.IpAddress}:{port}"
-        m
+        svc
 
-    let shutdown (m : MuSvc) =
-        if not m.CancelSrc.IsCancellationRequested then
-            m.CancelSrc.Cancel ()
-            printfn $"Shutdown request sent to microservice at {m.IpAddress}:{m.Port}."
+    let shutdown (svc : MuSvc) =
+        if not svc.CancelSrc.IsCancellationRequested then
+            svc.CancelSrc.Cancel ()
