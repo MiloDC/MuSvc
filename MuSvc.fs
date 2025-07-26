@@ -63,20 +63,18 @@ module MuSvc =
             try
                 match! svc.Mailbox.Receive 50 with
                 | Input (client, bytes) ->
-                    do!
-                        async {
-                            do! svc.ProcessInput bytes |> sendResultAsync client
-                        }
-                        |> Async.StartChild |> Async.Ignore
+                    async {
+                        do! svc.ProcessInput bytes |> sendResultAsync client
+                    }
+                    |> Async.Start
                 | ClientCount client ->
-                    do!
                         async {
                             do!
                                 lock svc.Clients (fun () -> svc.Clients.Count)
                                 |> string |> Text
                                 |> sendResultAsync client
                         }
-                        |> Async.StartChild |> Async.Ignore
+                        |> Async.Start
                 | RemoveClient client ->
                     client.tcp.Close ()
                     lock svc.Clients (fun () -> svc.Clients.Remove client) |> ignore
@@ -89,16 +87,14 @@ module MuSvc =
                         svc.Listener.BeginAcceptTcpClient, svc.Listener.EndAcceptTcpClient )
                 let client = { tcp = tcpClient; buf = Array.zeroCreate 8192 }
                 lock svc.Clients (fun () -> svc.Clients.Add client)
-                do!
-                    async {
-                        do!
-                            $"Connected to microservice @ {svc.IpAddress}:{svc.Port}"
-                            |> Text
-                            |> sendResultAsync client
-                        do! Client.loopAsync svc.Mailbox (new IO.MemoryStream ()) client
-                    }
-                    |> Async.StartChild
-                    |> Async.Ignore
+                async {
+                    do!
+                        $"Connected to microservice @ {svc.IpAddress}:{svc.Port}"
+                        |> Text
+                        |> sendResultAsync client
+                    do! Client.loopAsync svc.Mailbox (new IO.MemoryStream ()) client
+                }
+                |> Async.Start
 
             return! loopAsync svc
         }
